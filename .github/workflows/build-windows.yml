@@ -68,28 +68,32 @@ jobs:
       - name: Patch better-sqlite3 prebuilt for Electron ABI
         shell: bash
         run: |
-          node -e "
-            const { execSync } = require('node:child_process');
-            const fs = require('node:fs');
-            const path = require('node:path');
-            const pkg = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8'));
-            const version = pkg.dependencies['better-sqlite3'];
-            const electronVersion = JSON.parse(fs.readFileSync('node_modules/electron/package.json', 'utf8')).version;
-            const abi = execSync('node -p process.versions.modules', { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }).toString().trim();
-            console.log('better-sqlite3', version, 'electron', electronVersion, 'abi', abi);
-            const tmp = 'bs3-prebuild';
-            fs.mkdirSync(tmp, { recursive: true });
-            const tarball = path.join(tmp, 'prebuild.tar.gz');
-            execSync('gh release download v' + version + ' --repo WiseLibs/better-sqlite3 --pattern better-sqlite3-v' + version + '-electron-v' + abi + '-win32-x64.tar.gz --dir ' + tmp, { stdio: 'inherit', shell: 'bash' });
-            execSync('tar -xzf ' + tarball + ' -C ' + tmp, { stdio: 'inherit', shell: 'bash' });
-            const binary = path.join(tmp, 'build/Release/better_sqlite3.node');
-            const targets = execSync('node -e \"const g=require(\'node:fs\').readdirSync;\" 2>nul || dir /s /b better_sqlite3.node', { shell: 'cmd' });
-            " || true
-          # Simpler, robust replacement using bash find:
-          EXE=$(find . -path ./node_modules/.bun -prune -o -name "better_sqlite3.node" -print | head -5)
-          echo "Found binaries: $EXE"
-          for f in $EXE; do
-            cp bs3-prebuild/build/Release/better_sqlite3.node "$f"
+          set -e
+          # With bun's isolated linker, packages live under node_modules/.bun.
+          # Resolve the real paths instead of assuming a hoisted layout.
+          ELECTRON_PKG=$(find node_modules/.bun -maxdepth 1 -type d -name "electron@*" | head -1)
+          BS3_PKG=$(find node_modules/.bun -maxdepth 1 -type d -name "better-sqlite3@*" | head -1)
+          ELECTRON_VERSION=$(node -p "require('./${ELECTRON_PKG}/node_modules/electron/package.json').version")
+          BS3_VERSION=$(node -p "require('./${BS3_PKG}/node_modules/better-sqlite3/package.json').version")
+          # Electron's ABI (NODE_MODULE_VERSION) — read from the electron package's
+          # own binary via ELECTRON_RUN_AS_NODE.
+          ABI=$(ELECTRON_RUN_AS_NODE=1 "${ELECTRON_PKG}/node_modules/electron/dist/electron.exe" -p process.versions.modules)
+          echo "better-sqlite3 ${BS3_VERSION}, electron ${ELECTRON_VERSION}, ABI ${ABI}"
+
+          TMP=bs3-prebuild
+          mkdir -p "$TMP"
+          gh release download "v${BS3_VERSION}" \
+            --repo WiseLibs/better-sqlite3 \
+            --pattern "better-sqlite3-v${BS3_VERSION}-electron-v${ABI}-win32-x64.tar.gz" \
+            --dir "$TMP"
+          tar -xzf "$TMP/better-sqlite3-v${BS3_VERSION}-electron-v${ABI}-win32-x64.tar.gz" -C "$TMP"
+
+          # Substitute every materialized copy the packaging step will pick up:
+          # the desktop workspace node_modules and the bun store entry.
+          TARGETS=$(find apps/desktop/node_modules node_modules/.bun -name "better_sqlite3.node" 2>/dev/null)
+          echo "Targets: $TARGETS"
+          for f in $TARGETS; do
+            cp "$TMP/build/Release/better_sqlite3.node" "$f"
             echo "Patched $f"
           done
 
