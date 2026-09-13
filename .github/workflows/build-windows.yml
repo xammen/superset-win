@@ -18,16 +18,16 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      - name: Enable long paths (must precede checkout)
+        shell: bash
+        run: git config --global core.longpaths true
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           # The repo carries the full patched monorepo; full history is not
           # needed for the build itself.
           fetch-depth: 1
-
-      - name: Long paths
-        shell: bash
-        run: git config --global core.longpaths true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
