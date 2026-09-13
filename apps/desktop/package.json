@@ -109,7 +109,7 @@
 		"@tanstack/react-query-persist-client": "5.101.4",
 		"@tanstack/react-router": "1.170.16",
 		"@tanstack/react-table": "8.21.3",
-		"@tanstack/react-virtual": "3.14.3",
+		"@tanstack/react-virtual": "3.14.11",
 		"@tiptap/core": "3.30.4",
 		"@tiptap/extension-blockquote": "3.30.4",
 		"@tiptap/extension-bold": "3.30.4",
