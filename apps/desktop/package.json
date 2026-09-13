@@ -239,7 +239,7 @@
 		"unified": "11.0.5",
 		"use-resize-observer": "9.1.0",
 		"utf-8-validate": "6.0.6",
-		"uuid": "14.0.0",
+		"uuid": "14.0.2",
 		"ws": "8.21.3",
 		"zod": "4.4.3",
 		"zustand": "5.0.12"
