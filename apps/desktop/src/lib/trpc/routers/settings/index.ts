@@ -1114,7 +1114,7 @@ export const createSettingsRouter = () => {
 
 		setWorktreeBaseDir: publicProcedure
 			.input(z.object({ path: z.string().nullable() }))
-			.mutation(({ input }) => {
+			.mutation(async ({ input }) => {
 				localDb
 					.insert(settings)
 					.values({ id: 1, worktreeBaseDir: input.path })
@@ -1123,6 +1123,19 @@ export const createSettingsRouter = () => {
 						set: { worktreeBaseDir: input.path },
 					})
 					.run();
+
+				// Restart active host-service children so V2 worktree creation picks
+				// up the new SUPERSET_WORKTREE_BASE_DIR from buildEnv(). Otherwise a
+				// running host-service keeps the old base until app restart. No-op if
+				// the user isn't signed in.
+				const { token } = await loadToken();
+				if (token) {
+					const coordinator = getHostServiceCoordinator();
+					await coordinator.restartAll({
+						authToken: token,
+						cloudApiUrl: env.NEXT_PUBLIC_API_URL,
+					});
+				}
 
 				return { success: true };
 			}),

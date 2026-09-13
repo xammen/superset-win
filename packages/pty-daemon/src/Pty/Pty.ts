@@ -13,6 +13,11 @@ import {
 } from "../process-tree.ts";
 import type { SessionMeta } from "../protocol/index.ts";
 
+// On Windows, node-pty is backed by ConPTY handles rather than a Unix PTY
+// master fd, so `_fd` is -1 and the fd-handoff daemon upgrade is unavailable.
+// Normal spawn still works; only the hot-upgrade path is disabled.
+const SUPPORTS_FD_HANDOFF = process.platform !== "win32";
+
 const KILL_ESCALATION_TIMEOUT_MS = 1000;
 /**
  * Verify-round backoff after the SIGKILL escalation. The long tail exists
@@ -422,7 +427,7 @@ export function spawn({ meta }: SpawnOptions): Pty {
 	try {
 		adapter = new NodePtyAdapter(term, meta);
 		// Validate the private-fd dependency at spawn time, not handoff time.
-		adapter.getMasterFd();
+		if (SUPPORTS_FD_HANDOFF) adapter.getMasterFd();
 		return adapter;
 	} catch (err) {
 		// node-pty has already forked and opened the master fd at this point.

@@ -1,4 +1,7 @@
-import { sanitizeUserBranchName } from "@superset/shared/workspace-launch";
+import {
+	deriveWorkspaceBranchFromPrompt,
+	sanitizeUserBranchName,
+} from "@superset/shared/workspace-launch";
 import type { DashboardNewWorkspaceDraft } from "../../../../../DashboardNewWorkspaceDraftContext";
 
 interface ResolvedNames {
@@ -14,7 +17,7 @@ interface ResolvedNames {
  * random and applies AI names as a deferred rename.
  */
 export function resolveNames(draft: DashboardNewWorkspaceDraft): ResolvedNames {
-	const branchName =
+	const explicitBranch =
 		draft.branchNameEdited && draft.branchName.trim()
 			? sanitizeUserBranchName(draft.branchName.trim())
 			: null;
@@ -23,6 +26,13 @@ export function resolveNames(draft: DashboardNewWorkspaceDraft): ResolvedNames {
 		draft.workspaceNameEdited && draft.workspaceName.trim()
 			? draft.workspaceName.trim()
 			: null;
+
+	// If the user typed only the workspace name (no branch, no prompt/agent),
+	// derive the branch slug from it instead of letting the host-service fall
+	// back to a random friendly branch. An explicit typed branch still wins.
+	const branchName =
+		explicitBranch ??
+		(workspaceName ? deriveWorkspaceBranchFromPrompt(workspaceName) : null);
 
 	return { branchName, workspaceName };
 }

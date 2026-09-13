@@ -7,6 +7,7 @@ import {
 } from "@parcel/watcher";
 import { toErrorMessage } from "./error-message";
 import { findNestedRepoRoots } from "./find-nested-repos";
+import { subscribeInWorkerThread } from "./parcel-worker-proxy";
 import { normalizeAbsolutePath } from "./paths";
 import {
 	DEFAULT_IGNORE_DIR_NAMES,
@@ -39,6 +40,14 @@ const FILE_PATHS_MAX = 10_000;
 const MAX_WORK_CHUNK_SIZE = 500;
 const THROTTLE_DELAY_MS = 200;
 const MAX_BUFFERED_EVENTS = 30_000;
+
+// Windows: the @parcel/watcher native binding scans the watched tree
+// synchronously on the calling thread during subscribe(). When invoked from
+// the Electron main process, a cold scan of a worktree freezes the entire app
+// for seconds (measured: 2 × ~5.3s main-thread stalls, ~99.9% of CPU samples
+// inside the native subscribe()). Run the native watcher inside a worker
+// thread instead; other platforms keep the in-thread subscribe.
+const OFFLOAD_PARCEL_WATCHER_TO_WORKER = process.platform === "win32";
 
 // FSEvents overflow rescan pacing. Under sustained churn the kernel drops
 // events repeatedly (648 overflows/day observed across 8 worktrees of one
@@ -578,63 +587,70 @@ export class FsWatcherManager {
 		// Subscribe to the resolved real path so kernel paths come back in a
 		// consistent form; we map them back to `state.absolutePath` in
 		// `normalizeEvents`. Mirrors VS Code's parcelWatcher.ts:364.
-		state.subscription = await subscribeToFilesystem(
-			realPath,
-			(error, events) => {
-				if (state.generation !== generation) {
-					// Late callback from a superseded stream (suspended or
-					// replaced by recovery) — its events describe a dead tree.
-					return;
-				}
-				if (error) {
-					this.onUnexpectedError(error, state);
-					// Continue: process whatever events did arrive alongside
-					// the error. Mirrors VS Code's parcelWatcher.ts:373-378
-					// pattern (log error, then onParcelEvents anyway).
-				}
+		const handleParcelEvents = (
+			error: Error | null,
+			events: ParcelWatcherEvent[],
+		) => {
+			if (state.generation !== generation) {
+				// Late callback from a superseded stream (suspended or
+				// replaced by recovery) — its events describe a dead tree.
+				return;
+			}
+			if (error) {
+				this.onUnexpectedError(error, state);
+				// Continue: process whatever events did arrive alongside
+				// the error. Mirrors VS Code's parcelWatcher.ts:373-378
+				// pattern (log error, then onParcelEvents anyway).
+			}
 
-				// Consume the liveness probe before it reaches listeners or the index.
-				const visibleEvents = events.filter((event) => {
-					if (path.basename(event.path).startsWith(PROBE_PREFIX)) {
-						state.probeSeen = true;
-						return false;
-					}
-					return true;
+			// Consume the liveness probe before it reaches listeners or the index.
+			const visibleEvents = events.filter((event) => {
+				if (path.basename(event.path).startsWith(PROBE_PREFIX)) {
+					state.probeSeen = true;
+					return false;
+				}
+				return true;
+			});
+
+			if (visibleEvents.length === 0) {
+				return;
+			}
+
+			if (process.env.SUPERSET_FS_EVENTS_DEBUG === "1") {
+				console.log("[fs:debug] parcel callback", {
+					path: state.absolutePath,
+					count: visibleEvents.length,
+					kinds: visibleEvents.map((e) => e.type),
 				});
+			}
 
-				if (visibleEvents.length === 0) {
-					return;
-				}
+			this.normalizeEvents(visibleEvents, state);
+			state.pendingEvents.push(...visibleEvents);
+			if (state.flushTimer) {
+				return;
+			}
 
-				if (process.env.SUPERSET_FS_EVENTS_DEBUG === "1") {
-					console.log("[fs:debug] parcel callback", {
-						path: state.absolutePath,
-						count: visibleEvents.length,
-						kinds: visibleEvents.map((e) => e.type),
-					});
-				}
-
-				this.normalizeEvents(visibleEvents, state);
-				state.pendingEvents.push(...visibleEvents);
-				if (state.flushTimer) {
-					return;
-				}
-
-				const flushTimer = setTimeout(() => {
-					state.flushTimer = null;
-					const pendingEvents = state.pendingEvents.splice(
-						0,
-						state.pendingEvents.length,
-					);
-					void this.flushPendingEvents(state, pendingEvents);
-				}, this.debounceMs);
-				state.flushTimer = flushTimer;
-				flushTimer.unref?.();
-			},
-			{
-				ignore,
-			},
-		);
+			const flushTimer = setTimeout(() => {
+				state.flushTimer = null;
+				const pendingEvents = state.pendingEvents.splice(
+					0,
+					state.pendingEvents.length,
+				);
+				void this.flushPendingEvents(state, pendingEvents);
+			}, this.debounceMs);
+			state.flushTimer = flushTimer;
+			flushTimer.unref?.();
+		};
+		// Windows: the @parcel/watcher native binding scans the watched tree
+		// synchronously on the calling thread during subscribe(). When invoked
+		// from the Electron main process, a cold scan of a worktree freezes the
+		// entire app for seconds (measured: 2 × ~5.3s main-thread stalls, ~99.9%
+		// of CPU samples inside the native subscribe()). Offload the native
+		// subscription to a worker thread; other platforms keep the in-thread
+		// subscribe.
+		state.subscription = OFFLOAD_PARCEL_WATCHER_TO_WORKER
+			? await subscribeInWorkerThread(realPath, handleParcelEvents, { ignore })
+			: await subscribeToFilesystem(realPath, handleParcelEvents, { ignore });
 	}
 
 	/**

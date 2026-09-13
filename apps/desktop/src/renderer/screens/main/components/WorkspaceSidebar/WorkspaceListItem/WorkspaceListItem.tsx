@@ -9,6 +9,7 @@ import { WorkspaceNameMarquee } from "renderer/components/WorkspaceNameMarquee";
 import { useCopyToClipboard } from "renderer/hooks/useCopyToClipboard";
 import { useFocusVisible } from "renderer/hooks/useFocusVisible";
 import { HotkeyLabel } from "renderer/hotkeys";
+import { PLATFORM } from "renderer/hotkeys/registry";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useHoverGitHubStatus } from "renderer/lib/githubQueryPolicy";
 import { useWorkspaceDeleteHandler } from "renderer/react-query/workspaces";
@@ -414,7 +415,8 @@ export function WorkspaceListItem({
 									{shortcutIndex !== undefined &&
 										shortcutIndex < MAX_KEYBOARD_SHORTCUT_INDEX && (
 											<span className="text-[10px] text-muted-foreground font-mono tabular-nums shrink-0">
-												⌘{shortcutIndex + 1}
+												{PLATFORM === "mac" ? "⌘" : "Ctrl+Shift+"}
+												{shortcutIndex + 1}
 											</span>
 										)}
 									{!isBranchWorkspace && (

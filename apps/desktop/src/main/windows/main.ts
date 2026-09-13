@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { msg } from "@lingui/core/macro";
 import * as Sentry from "@sentry/electron/main";
 import { i18n } from "@superset/i18n";
-import { workspaces, worktrees } from "@superset/local-db";
+import { settings, workspaces, worktrees } from "@superset/local-db";
 import { eq } from "drizzle-orm";
 import type { BrowserWindow } from "electron";
-import { app, Notification, nativeTheme } from "electron";
+import { app, dialog, Notification, nativeTheme } from "electron";
 import log from "electron-log/main";
 import { createWindow } from "lib/electron-app/factories/windows/create";
 import { createTrpcContext } from "lib/trpc/context";
@@ -14,7 +14,11 @@ import { createAppRouter } from "lib/trpc/routers";
 import { resolveDevWorkspaceName } from "main/lib/dev-workspace-name";
 import { localDb } from "main/lib/local-db";
 import { isExpectedRendererExit } from "main/lib/renderer-exit";
-import { NOTIFICATION_EVENTS, PLATFORM } from "shared/constants";
+import {
+	DEFAULT_CONFIRM_ON_QUIT,
+	NOTIFICATION_EVENTS,
+	PLATFORM,
+} from "shared/constants";
 import { env } from "shared/env.shared";
 import type { AgentLifecycleEvent } from "shared/notification-types";
 import { createIPCHandler } from "trpc-electron/main";
@@ -469,6 +473,22 @@ export async function createPlatformWindow({
 		});
 	}
 
+	// Forward renderer warning/error messages to main process stdout for Windows debugging.
+	if (PLATFORM.IS_WINDOWS) {
+		window.webContents.on(
+			"console-message",
+			(_event, level, message, line, sourceId) => {
+				if (level < 2) return;
+				const levelStr =
+					["verbose", "info", "warning", "error"][level] ?? "unknown";
+				const source = sourceId ? ` (${sourceId}:${line})` : "";
+				const formatted = `[renderer:${levelStr}] ${message}${source}`;
+				if (level === 3) console.error(formatted);
+				else console.warn(formatted);
+			},
+		);
+	}
+
 	ipcHandler?.attachWindow(window);
 	browserManager.registerHostWindow(window.webContents);
 
@@ -578,7 +598,36 @@ export async function createPlatformWindow({
 		console.error(`  Error:`, error);
 	});
 
-	window.on("close", () => {
+	window.on("close", (event) => {
+		// Windows: show quit confirmation BEFORE the window closes.
+		// The before-quit handler fires too late on Windows (window is already gone).
+		if (PLATFORM.IS_WINDOWS) {
+			let confirmOnQuit = DEFAULT_CONFIRM_ON_QUIT;
+			try {
+				const row = localDb.select().from(settings).get();
+				confirmOnQuit = row?.confirmOnQuit ?? DEFAULT_CONFIRM_ON_QUIT;
+			} catch {}
+
+			if (confirmOnQuit) {
+				event.preventDefault();
+				dialog
+					.showMessageBox(window, {
+						type: "question",
+						buttons: ["Quit", "Cancel"],
+						defaultId: 0,
+						cancelId: 1,
+						title: "Quit Superset",
+						message: "Are you sure you want to quit?",
+					})
+					.then(({ response }) => {
+						if (response === 0) {
+							window.destroy(); // Bypass close event to avoid loop
+						}
+					});
+				return;
+			}
+		}
+
 		// Save window state first, before any cleanup
 		const isMaximized = window.isMaximized();
 		const bounds = isMaximized ? window.getNormalBounds() : window.getBounds();

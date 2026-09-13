@@ -1,4 +1,6 @@
+import "./lib/windows-child-process-patch";
 import { parentPort } from "node:worker_threads";
+
 import { executeGitTask } from "../lib/trpc/routers/changes/workers/git-task-handlers";
 import type { GitTaskType } from "../lib/trpc/routers/changes/workers/git-task-types";
 import { setGitTaskAbortSignal } from "../lib/trpc/routers/workspaces/utils/git-client";

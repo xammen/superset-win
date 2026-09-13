@@ -62,6 +62,21 @@ describe("buildAgentCommandString", () => {
 		).toBe("'claude' '--dangerously-skip-permissions' 'do the thing'");
 	});
 
+	it("emits a stored && token as a shell control operator", () => {
+		// A command chain like `clear && claude` is stored as command "clear"
+		// with args ["&&", "claude"]; && must not be single-quoted.
+		const chainConfig = {
+			...argvConfig,
+			command: "clear",
+			args: ["&&", "claude"],
+		};
+		expect(
+			buildAgentCommandString(chainConfig, "prompt", [], {
+				randomId: RANDOM_ID,
+			}),
+		).toBe("'clear' && 'claude' 'prompt'");
+	});
+
 	it("inserts model args between base args and the prompt (argv transport)", () => {
 		expect(
 			buildAgentCommandString(

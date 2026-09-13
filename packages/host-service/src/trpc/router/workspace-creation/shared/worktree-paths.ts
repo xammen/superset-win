@@ -14,6 +14,8 @@ import { TRPCError } from "@trpc/server";
 // Kept outside the primary checkout so editors, file watchers, and
 // ignore rules treat worktrees as separate trees, not nested ones.
 export function defaultWorktreesRoot(): string {
+	const envBase = process.env.SUPERSET_WORKTREE_BASE_DIR?.trim();
+	if (envBase) return envBase;
 	return join(homedir(), ".superset", "worktrees");
 }
 

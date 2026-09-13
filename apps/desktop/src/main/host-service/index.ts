@@ -5,7 +5,9 @@
  * The coordinator polls health.check to know when it's ready.
  */
 
+import "../lib/windows-child-process-patch";
 import { serve } from "@hono/node-server";
+
 import {
 	captureFatalStartupError,
 	createApp,
@@ -110,6 +112,12 @@ async function main(): Promise<void> {
 			allowedOrigins: [
 				`http://localhost:${env.DESKTOP_VITE_PORT}`,
 				`http://127.0.0.1:${env.DESKTOP_VITE_PORT}`,
+				// Windows production loads the renderer from the custom
+				// superset-app:// scheme (see window-loader.ts). Without this
+				// origin in the host-service CORS allowlist, every renderer
+				// fetch to the local host-service fails CORS preflight/POST
+				// ("Failed to fetch" across the whole UI).
+				"superset-app://app",
 			],
 			browserBridge: resolveBrowserBridgeFromEnv(env),
 		},

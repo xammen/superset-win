@@ -45,7 +45,12 @@ export function quoteSingleShell(value: string): string {
 }
 
 export function buildArgvCommand(argv: string[]): string {
-	return argv.map(quoteSingleShell).join(" ");
+	// A stored argv token equal to `&&` is a shell control operator (e.g. a
+	// command like `clear && claude`), not a literal argument — emit it verbatim
+	// instead of single-quoting it to `'&&'`.
+	return argv
+		.map((token) => (token === "&&" ? "&&" : quoteSingleShell(token)))
+		.join(" ");
 }
 
 export function envOverlayPrefix(env: Record<string, string>): string {
