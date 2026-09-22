@@ -483,6 +483,22 @@ export async function createPlatformWindow({
 		});
 	}
 
+	// Forward renderer warning/error messages to main process stdout for Windows debugging.
+	if (PLATFORM.IS_WINDOWS) {
+		window.webContents.on(
+			"console-message",
+			(_event, level, message, line, sourceId) => {
+				if (level < 2) return;
+				const levelStr =
+					["verbose", "info", "warning", "error"][level] ?? "unknown";
+				const source = sourceId ? ` (${sourceId}:${line})` : "";
+				const formatted = `[renderer:${levelStr}] ${message}${source}`;
+				if (level === 3) console.error(formatted);
+				else console.warn(formatted);
+			},
+		);
+	}
+
 	ipcHandler?.attachWindow(window);
 	browserManager.registerHostWindow(window.webContents);
 
@@ -595,7 +611,10 @@ export async function createPlatformWindow({
 	window.on("close", (event) => {
 		// Outside macOS the last window is the app: quit through its
 		// confirmation instead of leaving a windowless process, and keep the
-		// window when the confirmation is cancelled.
+		// window when the confirmation is cancelled. This also covers Windows:
+		// the window stays open while before-quit asks, which is what the old
+		// Windows-only close-time dialog existed to fix (before-quit used to
+		// fire after the window was already gone).
 		if (!appQuitting && !PLATFORM.IS_MAC && getAllWindows().length === 1) {
 			event.preventDefault();
 			app.quit();

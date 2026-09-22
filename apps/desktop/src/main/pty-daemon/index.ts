@@ -30,6 +30,8 @@
  * built-in main.ts directly.
  */
 
+import "../lib/windows-child-process-patch";
+
 import {
 	clearSnapshot,
 	DAEMON_PACKAGE_VERSION,

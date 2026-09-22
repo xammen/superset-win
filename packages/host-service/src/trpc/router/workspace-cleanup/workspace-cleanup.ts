@@ -30,7 +30,7 @@ import { isInsideSessionsRoot } from "../workspace-creation/shared/session-paths
 import { isInsideProjectWorktreesRoot } from "../workspace-creation/shared/worktree-paths";
 import { cleanupGitOps, isIndeterminateGitTaskFailure } from "./git-ops";
 import { isLocalCheckoutWorkspace } from "./is-local-checkout-workspace";
-import { removeDirectoryTree } from "./remove-directory-tree";
+import { isWindowsLockError, removeDirectoryTree } from "./remove-directory-tree";
 
 /**
  * Process-local guard against concurrent destroys of the same workspace.
@@ -599,12 +599,24 @@ async function runDestroyPhases(
 						await removeDirectoryTree(local.worktreePath);
 					} catch (err) {
 						const message = err instanceof Error ? err.message : String(err);
-						throw new TRPCError({
-							code: "INTERNAL_SERVER_ERROR",
-							message: `Worktree at ${local.worktreePath} is no longer registered with git, but its folder could not be removed: ${message}${
-								removeError ? ` (git worktree remove: ${removeError})` : ""
-							}`,
-						});
+						// Best-effort on Windows: a directory locked by VS Code or
+						// another process can't be removed, but the workspace is
+						// already gone from git. Surface a lock hint and let the
+						// delete succeed instead of un-archiving.
+						if (isMissingPath(local.worktreePath)) {
+							// Cleared after all (e.g. lock released mid-retry).
+						} else if (isWindowsLockError(err)) {
+							warnings.push(
+								`Worktree at ${local.worktreePath} is no longer registered with git, but its folder could not be removed because another process is holding it open (e.g. an editor or terminal). Close it and delete the folder manually: ${message}`,
+							);
+						} else {
+							throw new TRPCError({
+								code: "INTERNAL_SERVER_ERROR",
+								message: `Worktree at ${local.worktreePath} is no longer registered with git, but its folder could not be removed: ${message}${
+									removeError ? ` (git worktree remove: ${removeError})` : ""
+								}`,
+							});
+						}
 					}
 				}
 			}

@@ -8,7 +8,9 @@
  * to avoid JSON escaping overhead on escape-sequence-heavy PTY output.
  */
 
+import "../lib/windows-child-process-patch";
 import { write as fsWrite } from "node:fs";
+
 import {
 	type ProcessSignalError,
 	type ProcessSignalTarget,

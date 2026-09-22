@@ -295,11 +295,36 @@ const ALLOWED_ENV_VARS = new Set([
 	"LOCALAPPDATA",
 	"PROGRAMFILES",
 	"PROGRAMFILES(X86)",
+	"PROGRAMDATA",
+	"SYSTEMDRIVE",
 	"SYSTEMROOT",
 	"WINDIR",
 	"TEMP",
 	"TMP",
 	"PATHEXT", // Required for command resolution on Windows
+	"NUMBER_OF_PROCESSORS", // Used by MSBuild for parallel builds
+	"PROCESSOR_ARCHITECTURE", // Used by native toolchains (x86/AMD64/ARM64)
+	// Standard Windows system variables that installer scripts and tools use
+	// for platform detection and standard paths. None of these are secrets.
+	// `OS` (Windows_NT) is checked by installers like Codex's install.ps1 to
+	// detect Windows — without it they abort with "supports Windows only".
+	"OS",
+	"COMPUTERNAME",
+	"USERNAME",
+	"USERDOMAIN",
+	"HOMEDRIVE",
+	"HOMEPATH",
+	"ALLUSERSPROFILE",
+	"PUBLIC",
+	"COMMONPROGRAMFILES",
+	"COMMONPROGRAMFILES(X86)",
+	"PROGRAMW6432",
+	"COMMONPROGRAMW6432",
+	"PROCESSOR_IDENTIFIER",
+	"PROCESSOR_LEVEL",
+	"PROCESSOR_REVISION",
+	"PSModulePath", // Required for PowerShell built-in modules to load
+	"POWERSHELL_UPDATECHECK",
 
 	// SSL/TLS configuration (custom certs, not secrets)
 	"SSL_CERT_FILE",

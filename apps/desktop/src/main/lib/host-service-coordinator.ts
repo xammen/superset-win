@@ -1052,6 +1052,11 @@ export class HostServiceCoordinator extends EventEmitter {
 			DESKTOP_VITE_PORT: String(sharedEnv.DESKTOP_VITE_PORT),
 			SUPERSET_HOME_DIR: SUPERSET_HOME_DIR,
 			SUPERSET_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
+			// V2 worktree creation (host-service) honors this configured base dir
+			// instead of hard-coding ~/.superset/worktrees.
+			...(row?.worktreeBaseDir?.trim()
+				? { SUPERSET_WORKTREE_BASE_DIR: row.worktreeBaseDir.trim() }
+				: {}),
 			SUPERSET_AGENT_HOOK_PORT: String(sharedEnv.DESKTOP_NOTIFICATIONS_PORT),
 			SUPERSET_AGENT_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
 			// BROWSER_BRIDGE_URL/SECRET are set (or stripped) after the shell-env

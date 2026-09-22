@@ -101,6 +101,14 @@ export function loadAddons(
 				}
 			});
 			terminal.loadAddon(webglAddon);
+			// The WebGL renderer has different glyph metrics than the initial DOM
+			// renderer. Without a clean repaint after the swap, the terminal shows
+			// garbled/overlapping text on first open (notably on Windows), and
+			// alternate-screen apps (Claude Code, vim) don't render cleanly. Run
+			// the same recovery that tab-switching triggers: clear the stale WebGL
+			// glyph cache and force a full repaint.
+			webglAddon.clearTextureAtlas?.();
+			terminal.refresh(0, terminal.rows - 1);
 		} catch (err) {
 			console.warn(
 				"[terminal] WebGL renderer unavailable — this terminal falls back to the DOM renderer",

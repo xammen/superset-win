@@ -1,4 +1,5 @@
 import { watch as probeNativeWatch } from "node:fs";
+import type { Event as ParcelWatcherEvent } from "@parcel/watcher";
 import type { NativeWatchBackend } from "./types";
 
 // Linux: @parcel/watcher's inotify backend starts on a thread and the caller
@@ -33,6 +34,33 @@ export const parcelWatchBackend: NativeWatchBackend = {
 			generation === 1
 				? ignore
 				: [...ignore, `**/.superset-watch-generation-${generation}/**`];
+
+		// The parcel callback both backends share with watch.ts.
+		const handleEvents = (error: Error | null, events: ParcelWatcherEvent[]) => {
+			// Log the error, then process whatever events arrived alongside
+			// it. Mirrors VS Code's parcelWatcher.ts:373-378.
+			if (error) onError(error);
+			if (events.length > 0) onEvents(events);
+		};
+
+		// Windows: the @parcel/watcher native binding scans the watched tree
+		// synchronously on the calling thread during subscribe(). When invoked
+		// from the Electron main process, a cold scan of a worktree freezes the
+		// entire app for seconds (measured: 2 × ~5.3s main-thread stalls,
+		// ~99.9% of CPU samples inside the native subscribe()). Run the native
+		// watcher inside a worker thread instead. The proxy also pins the
+		// native "windows" backend, skipping parcel's watchman probe (a
+		// `cmd.exe` spawn from C++ that flashes a console window). Loaded
+		// lazily so other platforms never map the parcel addon through it.
+		if (process.platform === "win32") {
+			const { subscribeInWorkerThread } = await import(
+				"../parcel-worker-proxy"
+			);
+			return subscribeInWorkerThread(rootPath, handleEvents, {
+				ignore: uniqueIgnore,
+			});
+		}
+
 		// Loaded on first use so a platform on another backend never maps the
 		// native addon into the process.
 		const { subscribe: subscribeToFilesystem } = await import(
@@ -40,12 +68,7 @@ export const parcelWatchBackend: NativeWatchBackend = {
 		);
 		const subscription = await subscribeToFilesystem(
 			rootPath,
-			(error, events) => {
-				// Log the error, then process whatever events arrived alongside
-				// it. Mirrors VS Code's parcelWatcher.ts:373-378.
-				if (error) onError(error);
-				if (events.length > 0) onEvents(events);
-			},
+			handleEvents,
 			{ ignore: uniqueIgnore },
 		);
 		return { unsubscribe: () => subscription.unsubscribe() };

@@ -1,3 +1,6 @@
+// Must stay first: defaults windowsHide on every child_process spawn before
+// any bundled module captures promisified references (Windows console flash).
+import "./lib/windows-child-process-patch";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -294,7 +297,11 @@ app.on("before-quit", async (event) => {
 	if (isQuitting) return;
 
 	const isDev = process.env.NODE_ENV === "development";
-	if (!skipQuitConfirmation && !isDev && getConfirmOnQuitSetting()) {
+	if (
+		!skipQuitConfirmation &&
+		!isDev &&
+		getConfirmOnQuitSetting()
+	) {
 		event.preventDefault();
 		if (quitConfirmationOpen) return;
 		quitConfirmationOpen = true;
@@ -413,6 +420,15 @@ protocol.registerSchemesAsPrivileged([
 			supportFetchAPI: true,
 		},
 	},
+	{
+		scheme: "superset-app",
+		privileges: {
+			standard: true,
+			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		},
+	},
 ]);
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -474,6 +490,51 @@ if (!gotTheLock) {
 		session
 			.fromPartition("persist:superset")
 			.protocol.handle("superset-icon", iconProtocolHandler);
+
+		// Register custom protocol for serving renderer files.
+		// Dynamic imports (code-split chunks) fail on file:// protocol in Electron on Windows.
+		const rendererDir = path.join(__dirname, "../renderer");
+		const appProtocolHandler = (request: Request) => {
+			let urlPath = new URL(request.url).pathname;
+			if (urlPath.startsWith("/")) urlPath = urlPath.slice(1);
+			const filePath = path.join(rendererDir, urlPath);
+			return net.fetch(pathToFileURL(filePath).toString());
+		};
+		protocol.handle("superset-app", appProtocolHandler);
+		session
+			.fromPartition("persist:superset")
+			.protocol.handle("superset-app", appProtocolHandler);
+
+		// On Windows, the custom superset-app:// protocol origin is not recognized by
+		// the API server's CORS policy. Bypass CORS for API requests by modifying headers.
+		if (PLATFORM.IS_WINDOWS) {
+			const appSession = session.fromPartition("persist:superset");
+			appSession.webRequest.onBeforeSendHeaders(
+				{
+					urls: [
+						"https://api.superset.sh/*",
+						"https://*.posthog.com/*",
+						"https://*.sentry.io/*",
+						"https://app.outlit.ai/*",
+					],
+				},
+				(details, callback) => {
+					if (details.requestHeaders.Origin === "superset-app://app") {
+						delete details.requestHeaders.Origin;
+					}
+					callback({ requestHeaders: details.requestHeaders });
+				},
+			);
+			appSession.webRequest.onHeadersReceived(
+				{ urls: ["https://api.superset.sh/*"] },
+				(details, callback) => {
+					const headers = details.responseHeaders ?? {};
+					headers["access-control-allow-origin"] = ["superset-app://app"];
+					headers["access-control-allow-credentials"] = ["true"];
+					callback({ responseHeaders: headers });
+				},
+			);
+		}
 
 		// Serve system fonts (e.g. SF Mono on macOS) via custom protocol
 		// so the renderer can use @font-face with font-src 'self' CSP

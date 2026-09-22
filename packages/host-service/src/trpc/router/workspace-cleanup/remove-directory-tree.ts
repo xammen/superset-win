@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process";
 import type { Dirent, Stats } from "node:fs";
+import { existsSync } from "node:fs";
 import { chmod, lstat, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+
+const IS_WINDOWS = process.platform === "win32";
 
 /** Owner read + write + execute — what deleting a directory's contents needs:
  * read to list it, write to unlink its entries, execute to descend into it. */
@@ -23,8 +27,43 @@ const OWNER_ACCESS = 0o700;
  * live writer re-creating files, EBUSY, or an EPERM from an immutable flag
  * that chmod could not clear anyway — is rethrown untouched so the caller
  * reports it exactly as before.
+ *
+ * On Windows, junction-heavy worktrees and transiently-locked files (VS Code,
+ * antivirus) need retries; a final PowerShell `Remove-Item` fallback clears
+ * what `rm` cannot.
  */
 export async function removeDirectoryTree(path: string): Promise<void> {
+	if (IS_WINDOWS) {
+		try {
+			await rm(path, {
+				recursive: true,
+				force: true,
+				maxRetries: 5,
+				retryDelay: 100,
+			});
+		} catch (error) {
+			if (!existsSync(path)) return;
+			// Last resort: PowerShell's Remove-Item handles some locked/long-path
+			// trees that Node's rm cannot.
+			try {
+				execFileSync(
+					"powershell.exe",
+					[
+						"-NoProfile",
+						"-NonInteractive",
+						"-Command",
+						`Remove-Item -LiteralPath '${path.replace(/'/g, "''")}' -Recurse -Force`,
+					],
+					{ windowsHide: true, stdio: "ignore" },
+				);
+			} catch {
+				// Ignore — the existsSync check below decides success.
+			}
+			if (existsSync(path)) throw error;
+		}
+		return;
+	}
+
 	try {
 		await rm(path, { recursive: true, force: true });
 		return;
@@ -35,6 +74,24 @@ export async function removeDirectoryTree(path: string): Promise<void> {
 	// One retry, not a loop: the pass above is exhaustive over the tree, so a
 	// second denial is something chmod cannot fix and belongs in the report.
 	await rm(path, { recursive: true, force: true });
+}
+
+/** Whether an error message points at an external lock (open handle) rather
+ * than a stale git worktree — used to give the user an actionable hint. */
+export function isWindowsLockError(error: unknown): boolean {
+	const code =
+		typeof error === "object" && error !== null
+			? (error as { code?: unknown }).code
+			: undefined;
+	const message =
+		error instanceof Error ? error.message : String(error ?? "");
+	return (
+		code === "EPERM" ||
+		code === "EBUSY" ||
+		/permission denied|access is denied|being used by another process/i.test(
+			message,
+		)
+	);
 }
 
 /**

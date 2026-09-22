@@ -5,14 +5,31 @@ const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function quoteShellToken(value: string): string {
 	if (value === "") return "''";
+	// Preserve the `&&` shell control operator verbatim so a command chain like
+	// `clear && claude` round-trips through parse/join instead of becoming
+	// `clear '&&' claude`.
+	if (value === "&&") return "&&";
 	if (SAFE_SHELL_TOKEN.test(value)) return value;
 	return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function parseTokens(input: string): string[] {
-	return parse(input).filter(
-		(token): token is string => typeof token === "string",
-	);
+	return parse(input)
+		.map((token): string | null => {
+			if (typeof token === "string") return token;
+			// shell-quote emits control operators as `{ op: "&&" }`. Preserve `&&`
+			// so short command chains survive parsing; drop everything else.
+			if (
+				token &&
+				typeof token === "object" &&
+				"op" in token &&
+				(token as { op?: string }).op === "&&"
+			) {
+				return "&&";
+			}
+			return null;
+		})
+		.filter((token): token is string => token !== null);
 }
 
 function splitLeadingEnvAssignments(tokens: string[]): {

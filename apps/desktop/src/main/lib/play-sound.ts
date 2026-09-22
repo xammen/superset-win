@@ -28,8 +28,44 @@ export function playSoundFile(
 	const volumeDecimal = volume / 100;
 
 	if (process.platform === "darwin") {
-		return execFile("afplay", ["-v", volumeDecimal.toString(), soundPath], () =>
-			callbacks?.onComplete?.(),
+		return execFile(
+			"afplay",
+			["-v", volumeDecimal.toString(), soundPath],
+			{ windowsHide: true },
+			() => callbacks?.onComplete?.(),
+		);
+	}
+
+	if (process.platform === "win32") {
+		// Windows PowerShell + WPF MediaPlayer supports mp3/wav/ogg and honors
+		// volume. Returned so the ringtone preview can kill it on stop/replace.
+		const escapedPath = soundPath.replace(/'/g, "''");
+		const script = [
+			"Add-Type -AssemblyName PresentationCore;",
+			"$player = New-Object System.Windows.Media.MediaPlayer;",
+			`$player.Open([System.Uri]::new('${escapedPath}'));`,
+			`$player.Volume = ${volumeDecimal};`,
+			"Start-Sleep -Milliseconds 200;",
+			"$player.Play();",
+			"$durationMs = 5000;",
+			"if ($player.NaturalDuration.HasTimeSpan) { $durationMs = [int]$player.NaturalDuration.TimeSpan.TotalMilliseconds + 200 }",
+			"Start-Sleep -Milliseconds $durationMs;",
+			"$player.Stop();",
+			"$player.Close();",
+		].join(" ");
+		return execFile(
+			"powershell.exe",
+			[
+				"-NoProfile",
+				"-NonInteractive",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-STA",
+				"-Command",
+				script,
+			],
+			{ windowsHide: true },
+			() => callbacks?.onComplete?.(),
 		);
 	}
 
@@ -38,6 +74,7 @@ export function playSoundFile(
 	return execFile(
 		"paplay",
 		["--volume", paVolume.toString(), soundPath],
+		{ windowsHide: true },
 		(error) => {
 			if (error) {
 				if (callbacks?.isCanceled?.()) {
@@ -48,7 +85,7 @@ export function playSoundFile(
 					callbacks?.onComplete?.();
 					return;
 				}
-				const fallback = execFile("aplay", [soundPath], () =>
+				const fallback = execFile("aplay", [soundPath], { windowsHide: true }, () =>
 					callbacks?.onComplete?.(),
 				);
 				callbacks?.onProcessChange?.(fallback);

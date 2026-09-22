@@ -15,6 +15,7 @@ import {
 	devPath,
 	htmlEnvTransformPlugin,
 	linguiMacroPlugin,
+	stripCrossOriginPlugin,
 } from "./vite/helpers";
 
 // override: true ensures .env values take precedence over inherited env vars
@@ -143,6 +144,10 @@ export default defineConfig({
 				},
 				output: {
 					dir: resolve(devPath, "main"),
+					// VS Code and other Electron hosts set ELECTRON_RUN_AS_NODE=1 which
+					// prevents Electron from entering browser mode. Clear it before any
+					// require("electron") call — must be the very first statement.
+					banner: "delete globalThis.process.env.ELECTRON_RUN_AS_NODE;",
 				},
 				external: ["electron", ...mainExternalizedDependencies],
 				plugins: [sentryPlugin, hostServiceSentryPlugin].filter(Boolean),
@@ -264,6 +269,7 @@ export default defineConfig({
 				babel: { plugins: ["@lingui/babel-plugin-lingui-macro"] },
 			}),
 			htmlEnvTransformPlugin(),
+			stripCrossOriginPlugin(),
 		],
 
 		worker: {
