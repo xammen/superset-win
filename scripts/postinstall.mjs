@@ -33,7 +33,9 @@ function tryRun(cmd, label) {
 	try {
 		execSync(cmd, { stdio: "inherit", env });
 	} catch {
-		console.warn(`[postinstall] ${label} failed (non-fatal on Windows) — continuing`);
+		console.warn(
+			`[postinstall] ${label} failed (non-fatal on Windows) — continuing`,
+		);
 	}
 }
 

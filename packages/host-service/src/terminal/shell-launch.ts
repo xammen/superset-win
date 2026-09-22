@@ -7,7 +7,7 @@
  * - VS Code: ZDOTDIR for zsh, --init-file for bash, --init-command for fish
  * - Kitty: KITTY_ORIG_ZDOTDIR for zsh, ENV for bash, XDG_DATA_DIRS for fish
  */
-import { execFileSync } from "node:child_process";
+import cp from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -35,7 +35,7 @@ function isValidPwsh(candidate: string): boolean {
 	const base = path.basename(candidate).toLowerCase();
 	if (base !== "pwsh.exe" && base !== "pwsh") return false;
 	try {
-		const out = execFileSync(
+		const out = cp.execFileSync(
 			candidate,
 			["-NoLogo", "-NoProfile", "-Command", "$PSVersionTable.PSVersion.Major"],
 			{ encoding: "utf8", windowsHide: true, timeout: 5000 },
@@ -74,7 +74,7 @@ function collectPwshCandidates(
 		} catch {
 			// EPERM enumerating WindowsApps — resolve Store PowerShell via Get-AppxPackage.
 			try {
-				const out = execFileSync(
+				const out = cp.execFileSync(
 					"powershell.exe",
 					[
 						"-NoProfile",

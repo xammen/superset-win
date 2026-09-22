@@ -1,8 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import type { Dirent, Stats } from "node:fs";
 import { existsSync } from "node:fs";
 import { chmod, lstat, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const IS_WINDOWS = process.platform === "win32";
 
@@ -44,9 +47,10 @@ export async function removeDirectoryTree(path: string): Promise<void> {
 		} catch (error) {
 			if (!existsSync(path)) return;
 			// Last resort: PowerShell's Remove-Item handles some locked/long-path
-			// trees that Node's rm cannot.
+			// trees that Node's rm cannot. Async so the host-service event loop
+			// keeps serving while PowerShell walks the tree.
 			try {
-				execFileSync(
+				await execFileAsync(
 					"powershell.exe",
 					[
 						"-NoProfile",
@@ -54,7 +58,7 @@ export async function removeDirectoryTree(path: string): Promise<void> {
 						"-Command",
 						`Remove-Item -LiteralPath '${path.replace(/'/g, "''")}' -Recurse -Force`,
 					],
-					{ windowsHide: true, stdio: "ignore" },
+					{ windowsHide: true, timeout: 120_000 },
 				);
 			} catch {
 				// Ignore — the existsSync check below decides success.
@@ -77,14 +81,17 @@ export async function removeDirectoryTree(path: string): Promise<void> {
 }
 
 /** Whether an error message points at an external lock (open handle) rather
- * than a stale git worktree — used to give the user an actionable hint. */
+ * than a stale git worktree — used to give the user an actionable hint.
+ * Windows-only: on POSIX an EPERM/EBUSY/EACCES denial is a real failure the
+ * caller must report (and the EACCES recovery path must get its chance), not
+ * a transient file lock to warn-and-succeed about. */
 export function isWindowsLockError(error: unknown): boolean {
+	if (!IS_WINDOWS) return false;
 	const code =
 		typeof error === "object" && error !== null
 			? (error as { code?: unknown }).code
 			: undefined;
-	const message =
-		error instanceof Error ? error.message : String(error ?? "");
+	const message = error instanceof Error ? error.message : String(error ?? "");
 	return (
 		code === "EPERM" ||
 		code === "EBUSY" ||

@@ -134,7 +134,10 @@ describe("launchAgentSession", () => {
 		expect(result.tabId).toBe("tab-1");
 		expect(result.paneId).toBe("setup-pane");
 		expect(writes).toEqual([
-			{ paneId: "setup-pane", data: "bun install && claude\n" },
+			{
+				paneId: "setup-pane",
+				data: `bun install && claude${process.platform === "win32" ? "\r" : "\n"}`,
+			},
 		]);
 	});
 

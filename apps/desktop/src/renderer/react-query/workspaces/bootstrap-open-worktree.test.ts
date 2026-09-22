@@ -73,7 +73,7 @@ describe("bootstrapOpenWorktree", () => {
 		});
 		expect(writeToTerminal).toHaveBeenCalledWith({
 			paneId: "pane-1",
-			data: "echo setup\n",
+			data: `echo setup${process.platform === "win32" ? "\r" : "\n"}`,
 			throwOnError: true,
 		});
 	});

@@ -28,7 +28,9 @@ describe("parseCommandString", () => {
 	it("preserves the && shell chain operator through parse + join", () => {
 		const parsed = parseCommandString("clear && claude");
 		expect(parsed).toEqual({ command: "clear", args: ["&&", "claude"] });
-		expect(joinCommandArgs(parsed.command, parsed.args)).toBe("clear && claude");
+		expect(joinCommandArgs(parsed.command, parsed.args)).toBe(
+			"clear && claude",
+		);
 	});
 
 	it("returns empty command for empty input", () => {

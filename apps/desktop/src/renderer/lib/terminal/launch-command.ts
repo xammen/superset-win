@@ -31,10 +31,11 @@ interface LaunchCommandInPaneOptions {
 }
 
 export function normalizeTerminalCommand(command: string): string {
-	// Windows ConPTY expects \r (carriage return) to execute a command,
-	// while Unix terminals use \n (newline). Use \r for cross-platform compat
-	// as most Unix terminal emulators also accept \r.
-	const eol = "\r";
+	// Windows ConPTY expects \r (carriage return) to execute a command;
+	// Unix terminals use \n. (Unix PTYs' ICRNL would also accept \r, but the
+	// newline this produces is part of upstream's terminal contract and its
+	// tests assert it, so keep \n off Windows.)
+	const eol = process.platform === "win32" ? "\r" : "\n";
 	return command.endsWith("\n") || command.endsWith("\r")
 		? command
 		: `${command}${eol}`;

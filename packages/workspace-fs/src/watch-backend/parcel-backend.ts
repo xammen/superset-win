@@ -36,7 +36,10 @@ export const parcelWatchBackend: NativeWatchBackend = {
 				: [...ignore, `**/.superset-watch-generation-${generation}/**`];
 
 		// The parcel callback both backends share with watch.ts.
-		const handleEvents = (error: Error | null, events: ParcelWatcherEvent[]) => {
+		const handleEvents = (
+			error: Error | null,
+			events: ParcelWatcherEvent[],
+		) => {
 			// Log the error, then process whatever events arrived alongside
 			// it. Mirrors VS Code's parcelWatcher.ts:373-378.
 			if (error) onError(error);
@@ -66,11 +69,9 @@ export const parcelWatchBackend: NativeWatchBackend = {
 		const { subscribe: subscribeToFilesystem } = await import(
 			"@parcel/watcher"
 		);
-		const subscription = await subscribeToFilesystem(
-			rootPath,
-			handleEvents,
-			{ ignore: uniqueIgnore },
-		);
+		const subscription = await subscribeToFilesystem(rootPath, handleEvents, {
+			ignore: uniqueIgnore,
+		});
 		return { unsubscribe: () => subscription.unsubscribe() };
 	},
 };

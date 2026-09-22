@@ -24,8 +24,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { createServer, type Server, Socket } from "node:net";
-import { TERMINAL_HOST_PATHS } from "../lib/terminal-host/paths";
 import { isTerminalSpawnFailedError } from "../lib/terminal/errors";
+import { TERMINAL_HOST_PATHS } from "../lib/terminal-host/paths";
 import {
 	type CancelCreateOrAttachRequest,
 	type ClearScrollbackRequest,

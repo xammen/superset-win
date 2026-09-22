@@ -31,11 +31,11 @@ import {
 } from "@superset/pty-daemon/process-tree";
 import { app } from "electron";
 import { throwIfAborted } from "../terminal/abort";
-import { TERMINAL_HOST_PATHS } from "./paths";
 import {
 	TerminalAttachCanceledError,
 	TerminalSpawnFailedError,
 } from "../terminal/errors";
+import { TERMINAL_HOST_PATHS } from "./paths";
 import {
 	type CancelCreateOrAttachRequest,
 	type ClearScrollbackRequest,

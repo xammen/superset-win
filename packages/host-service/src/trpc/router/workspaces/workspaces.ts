@@ -61,9 +61,9 @@ import {
 	requireLocalProject,
 	requireProjectRepoPath,
 } from "../workspace-creation/shared/local-project";
+import { copyProjectSupersetConfigToWorktree } from "../workspace-creation/shared/project-superset-config";
 import { requireIndependentWorktree } from "../workspace-creation/shared/require-independent-worktree";
 import { startSetupTerminalIfPresent } from "../workspace-creation/shared/setup-terminal";
-import { copyProjectSupersetConfigToWorktree } from "../workspace-creation/shared/project-superset-config";
 import {
 	addWorktreeWithSparseCheckout,
 	parseSparseCheckoutPaths,
@@ -1273,7 +1273,7 @@ export const workspacesRouter = router({
 			// worktree has none of its own (many projects locally ignore it, so
 			// `git worktree add` doesn't materialize setup/run/ports files).
 			if (!alreadyExists && worktreePath !== undefined) {
-				copyProjectSupersetConfigToWorktree(repoPath, worktreePath);
+				await copyProjectSupersetConfigToWorktree(repoPath, worktreePath);
 			}
 
 			// Wait-for-setup gate: chain a single terminal agent behind the setup

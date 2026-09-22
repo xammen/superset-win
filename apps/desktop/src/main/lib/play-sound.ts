@@ -85,8 +85,11 @@ export function playSoundFile(
 					callbacks?.onComplete?.();
 					return;
 				}
-				const fallback = execFile("aplay", [soundPath], { windowsHide: true }, () =>
-					callbacks?.onComplete?.(),
+				const fallback = execFile(
+					"aplay",
+					[soundPath],
+					{ windowsHide: true },
+					() => callbacks?.onComplete?.(),
 				);
 				callbacks?.onProcessChange?.(fallback);
 				return;

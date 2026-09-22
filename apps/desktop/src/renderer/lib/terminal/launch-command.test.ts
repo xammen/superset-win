@@ -10,6 +10,10 @@ import {
 	rejectTerminalSessionReady,
 } from "./session-readiness";
 
+// The execute keystroke appended to every command: ConPTY wants \r on
+// Windows, Unix terminals \n (see normalizeTerminalCommand).
+const EOL = process.platform === "win32" ? "\r" : "\n";
+
 describe("launchCommandInPane", () => {
 	it("creates a terminal session and writes the command with a newline", async () => {
 		const createOrAttach = mock(async () => ({}));
@@ -32,7 +36,7 @@ describe("launchCommandInPane", () => {
 		});
 		expect(write).toHaveBeenCalledWith({
 			paneId: "pane-1",
-			data: "echo hello\n",
+			data: `echo hello${EOL}`,
 			throwOnError: true,
 		});
 	});
@@ -104,7 +108,7 @@ describe("launchCommandInPane", () => {
 
 		expect(write).toHaveBeenCalledWith({
 			paneId,
-			data: "echo hello\n",
+			data: `echo hello${EOL}`,
 			throwOnError: true,
 		});
 	});
@@ -158,7 +162,7 @@ describe("writeCommandsInPane", () => {
 
 		expect(write).toHaveBeenCalledWith({
 			paneId: "pane-1",
-			data: "echo one && echo two\n",
+			data: `echo one && echo two${EOL}`,
 			throwOnError: true,
 		});
 	});

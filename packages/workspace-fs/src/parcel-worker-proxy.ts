@@ -1,5 +1,4 @@
-import { existsSync } from "node:fs";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
@@ -40,7 +39,7 @@ type WorkerInMessage =
 			dir: string;
 			ignore: string[];
 			backend?: string;
-		}
+	  }
 	| { type: "unsubscribe"; id: number };
 
 type WorkerOutMessage =
@@ -52,7 +51,7 @@ type WorkerOutMessage =
 			id: number;
 			error: string | null;
 			events: ParcelWatcherEvent[];
-		}
+	  }
 	| { type: "fatal"; message: string };
 
 type ParcelSubscribeCallback = (
@@ -83,7 +82,10 @@ function resolveWatcherModulePath(): string {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const resolved = require.resolve("@parcel/watcher") as string;
 		candidates.push(resolved);
-		if (resolved.includes("app.asar") && !resolved.includes("app.asar.unpacked")) {
+		if (
+			resolved.includes("app.asar") &&
+			!resolved.includes("app.asar.unpacked")
+		) {
 			const unpacked = resolved.replace("app.asar", "app.asar.unpacked");
 			candidates.push(unpacked);
 		}
@@ -195,7 +197,9 @@ function handleWorkerMessage(message: WorkerOutMessage): void {
 		workerBroken = true;
 		worker = null;
 		debugLog(`worker fatal: ${message.message}`);
-		failAllPending(new Error(`parcel watcher worker failed: ${message.message}`));
+		failAllPending(
+			new Error(`parcel watcher worker failed: ${message.message}`),
+		);
 		return;
 	}
 	if (message.type === "subscribe-failed") {
@@ -250,22 +254,20 @@ function getWorker(): Worker | null {
 		created.unref();
 		created.on("message", handleWorkerMessage);
 		created.on("error", (error) => {
-			debugLog(`worker error: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+			debugLog(
+				`worker error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+			);
 			if (worker === created) {
 				worker = null;
 			}
-			failAllPending(
-				error instanceof Error ? error : new Error(String(error)),
-			);
+			failAllPending(error instanceof Error ? error : new Error(String(error)));
 		});
 		created.on("exit", (code) => {
 			if (worker === created) {
 				worker = null;
 			}
 			debugLog(`worker exited (code ${code})`);
-			failAllPending(
-				new Error(`parcel watcher worker exited (code ${code})`),
-			);
+			failAllPending(new Error(`parcel watcher worker exited (code ${code})`));
 		});
 		worker = created;
 		debugLog("worker created");
@@ -273,7 +275,7 @@ function getWorker(): Worker | null {
 	} catch (error) {
 		workerBroken = true;
 		debugLog(
-			`worker creation threw: ${error instanceof Error ? error.stack ?? error.message : String(error)}`,
+			`worker creation threw: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
 		);
 		return null;
 	}
@@ -291,7 +293,10 @@ function createProxySubscription(
 			}
 			return new Promise<void>((resolve) => {
 				pendingUnsubscribes.set(id, resolve);
-				workerRef.postMessage({ type: "unsubscribe", id } satisfies WorkerInMessage);
+				workerRef.postMessage({
+					type: "unsubscribe",
+					id,
+				} satisfies WorkerInMessage);
 				const timer = setTimeout(() => {
 					if (pendingUnsubscribes.get(id) === resolve) {
 						pendingUnsubscribes.delete(id);
@@ -326,7 +331,9 @@ export async function subscribeInWorkerThread(
 		process.platform === "win32" ? "windows" : (options?.backend as never);
 	const workerRef = getWorker();
 	if (!workerRef) {
-		debugLog(`subscribe(${dir}): worker unavailable — falling back to in-thread subscribe`);
+		debugLog(
+			`subscribe(${dir}): worker unavailable — falling back to in-thread subscribe`,
+		);
 		return subscribeToFilesystem(dir, callback, {
 			ignore: options?.ignore,
 			backend,

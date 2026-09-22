@@ -297,11 +297,7 @@ app.on("before-quit", async (event) => {
 	if (isQuitting) return;
 
 	const isDev = process.env.NODE_ENV === "development";
-	if (
-		!skipQuitConfirmation &&
-		!isDev &&
-		getConfirmOnQuitSetting()
-	) {
+	if (!skipQuitConfirmation && !isDev && getConfirmOnQuitSetting()) {
 		event.preventDefault();
 		if (quitConfirmationOpen) return;
 		quitConfirmationOpen = true;

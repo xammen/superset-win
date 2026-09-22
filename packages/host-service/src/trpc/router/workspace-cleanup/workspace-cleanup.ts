@@ -30,7 +30,10 @@ import { isInsideSessionsRoot } from "../workspace-creation/shared/session-paths
 import { isInsideProjectWorktreesRoot } from "../workspace-creation/shared/worktree-paths";
 import { cleanupGitOps, isIndeterminateGitTaskFailure } from "./git-ops";
 import { isLocalCheckoutWorkspace } from "./is-local-checkout-workspace";
-import { isWindowsLockError, removeDirectoryTree } from "./remove-directory-tree";
+import {
+	isWindowsLockError,
+	removeDirectoryTree,
+} from "./remove-directory-tree";
 
 /**
  * Process-local guard against concurrent destroys of the same workspace.

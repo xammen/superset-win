@@ -31,7 +31,11 @@ const RULES: Rule[] = [
 	{
 		name: "sync subprocess (execSync/spawnSync/execFileSync)",
 		pattern: /\b(execSync|spawnSync|execFileSync)\b/,
-		allowedCounts: {},
+		allowedCounts: {
+			// Windows-only PowerShell 7 probes (version check + Store-app
+			// fallback), cold path at shell resolution; 5s timeout each.
+			"terminal/shell-launch.ts": 2,
+		},
 		advice:
 			"Sync subprocesses freeze this org's only event loop until the child exits — every tRPC response, status poll, and watcher callback queues behind it. Prefer async spawn/execFile: the caller awaits the same result, but the loop keeps serving while the child runs. Git reads belong in a worker task (workers/tasks/git.ts via getHostWorkerPool()).",
 	},
@@ -96,7 +100,11 @@ const EXEMPT_FILE_PATTERNS = [/\.test\.ts$/, /\.node-test\.ts$/];
  * of that line), which can only under-count, never false-positive.
  */
 function countMatchingLines(contents: string, pattern: RegExp): number {
-	const stripped = contents.replace(/\/\*[\s\S]*?\*\//g, "");
+	// Normalize CRLF first: a trailing \r would otherwise stop `//.*$` from
+	// reaching end-of-line and turn every Windows-checkout comment into a hit.
+	const stripped = contents
+		.replace(/\/\*[\s\S]*?\*\//g, "")
+		.replace(/\r\n/g, "\n");
 	let count = 0;
 	for (const line of stripped.split("\n")) {
 		if (pattern.test(line.replace(/\/\/.*$/, ""))) count++;

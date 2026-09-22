@@ -41,6 +41,11 @@ const RULES: Rule[] = [
 		allowedCounts: {
 			// Cold daemon-recovery path only (connect failure / respawn).
 			"main/lib/terminal-host/client.ts": 2,
+			// Wrapper registry: the three lines are the variant *names* passed
+			// to patchVariant() so existing callers get windowsHide defaulted.
+			// The patch spawns nothing at install time, and it must keep these
+			// names string-identical to node:child_process's exports.
+			"main/lib/windows-child-process-patch.ts": 3,
 		},
 		advice:
 			"Sync subprocesses freeze the Electron main process until the child exits — every electronTrpc response and IPC event queues behind it, so the whole app feels hung. Prefer async spawn/execFile: the caller awaits the same result, but main keeps serving while the child runs.",
@@ -86,7 +91,11 @@ const EXEMPT_FILE_PATTERNS = [/\.test\.tsx?$/, /(^|\/)test-helpers\.ts$/];
  * of that line), which can only under-count, never false-positive.
  */
 function countMatchingLines(contents: string, pattern: RegExp): number {
-	const stripped = contents.replace(/\/\*[\s\S]*?\*\//g, "");
+	// Normalize CRLF first: a trailing \r would otherwise stop `//.*$` from
+	// reaching end-of-line and turn every Windows-checkout comment into a hit.
+	const stripped = contents
+		.replace(/\/\*[\s\S]*?\*\//g, "")
+		.replace(/\r\n/g, "\n");
 	let count = 0;
 	for (const line of stripped.split("\n")) {
 		if (pattern.test(line.replace(/\/\/.*$/, ""))) count++;

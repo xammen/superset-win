@@ -16,8 +16,8 @@
  * become attributable.
  */
 
-import { appendFileSync } from "node:fs";
 import childProcess from "node:child_process";
+import { appendFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isMainThread, threadId } from "node:worker_threads";

@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { SUPERSET_HOME_DIR } from "main/lib/app-environment";
 import { appState } from "main/lib/app-state";
 import { defaultAppState } from "main/lib/app-state/schemas";
-import { TERMINAL_HOST_PATHS } from "main/lib/terminal-host/paths";
 import {
 	disposeTerminalHostClient,
 	getTerminalHostClient,
 } from "main/lib/terminal-host/client";
+import { TERMINAL_HOST_PATHS } from "main/lib/terminal-host/paths";
 
 const TERMINAL_STATE_PATHS = [
 	"terminal-history",
